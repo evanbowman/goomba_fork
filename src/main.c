@@ -36,6 +36,35 @@ EWRAM_BSS u32 max_multiboot_size;		//largest possible multiboot transfer (init'd
 //The formula is an upper bound LZO estimate on worst case compression
 //#define WORSTCASE ((82048)+(82048)/64+16+4+64)
 
+#define REG_WAITCNT *(u16*)0x4000204
+
+__attribute__((section(".ewram")))
+static int _ewram_static_data = 0;
+
+
+bool ram_overclock()
+{
+    const u16 prev_dispcnt = REG_DISPCNT;
+
+    volatile unsigned* memctrl_register = (unsigned*)0x4000800;
+    *memctrl_register = 0x0E000020;
+
+    volatile int* ewram_static_data = &_ewram_static_data;
+    *ewram_static_data = 1;
+
+    bool result = false;
+
+    if (*ewram_static_data != 1) {
+        *memctrl_register = 0x0D000020;
+        result = false;
+    } else {
+        result = true;
+    }
+
+    return result;
+}
+
+
 #if GCC
 EWRAM_BSS u32 copiedfromrom=0;
 int main()
@@ -43,6 +72,9 @@ int main()
 	//this function does what boot.s used to do
 	extern u8 __rom_end__[]; //using this instead of __end__, because it's also cart compatible
 	extern u8 __eheap_start[];
+
+        REG_WAITCNT = 0x1B;
+        ram_overclock();
 
 	u32 end_addr = (u32)(&__rom_end__);
 	textstart = (u8*)(end_addr);
